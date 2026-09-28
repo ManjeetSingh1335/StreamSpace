@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import mongoose, {isValidObjectId} from "mongoose"
 import {Video} from "../models/video.model.js"
 import {User} from "../models/user.model.js"
 import {ApiError} from "../utils/ApiError.js"
@@ -34,7 +34,7 @@ const getAllVideos=asyncHandler(async(req, res)=>{
     }
 
     if(userId){
-        if(!mongoose.Types.ObjectId.isValid(userId)){
+        if(!isValidObjectId(userId)){
             throw new ApiError(400, "Invalid User ID Format")
         }
 
@@ -174,7 +174,7 @@ const getVideoById=asyncHandler(async(req, res)=>{
 
     const {videoId}=req.params
 
-    if(!mongoose.Types.ObjectId.isValid(videoId)){
+    if(!isValidObjectId(videoId)){
         throw new ApiError(400, "Invalid Video ID Format")
     }
 
@@ -273,7 +273,7 @@ const updateVideo=asyncHandler(async(req, res)=>{
 
     const {videoId}=req.params
     const {title, description}=req.body
-    if(!mongoose.Types.ObjectId.isValid(videoId)){
+    if(!isValidObjectId(videoId)){
         throw new ApiError(400, "Invalid Video ID Format")
     }
     if(!title?.trim() && !description?.trim() && !req.file){
@@ -334,7 +334,7 @@ const updateVideo=asyncHandler(async(req, res)=>{
 const deleteVideo=asyncHandler(async(req, res)=>{
 
     const {videoId}=req.params
-    if(!mongoose.Types.ObjectId.isValid(videoId)){
+    if(!isValidObjectId(videoId)){
         throw new ApiError(400, "Invalid Video ID Format")
     }
 
@@ -374,7 +374,7 @@ const deleteVideo=asyncHandler(async(req, res)=>{
 const togglePublishStatus=asyncHandler(async(req, res)=>{
 
     const {videoId}=req.params
-    if(!mongoose.Types.ObjectId.isValid(videoId)){
+    if(!isValidObjectId(videoId)){
         throw new ApiError(400, "Invalid Video ID Format")
     }
 
