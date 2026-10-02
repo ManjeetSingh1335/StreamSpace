@@ -290,6 +290,7 @@ const updateVideo=asyncHandler(async(req, res)=>{
     }
 
     const updateFields={}
+    
     if(title?.trim()){
         updateFields.title=title
     }
