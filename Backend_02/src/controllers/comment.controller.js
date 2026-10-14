@@ -1,6 +1,8 @@
 import mongoose, {isValidObjectId} from "mongoose"
 import {Comment} from "../models/comment.model.js"
 import {Video} from "../models/video.model.js"
+import {Tweet} from "../models/tweet.model.js"
+import {Like} from "../models/like.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
@@ -39,7 +41,7 @@ const getVideoComments=asyncHandler(async(req, res)=>{
                 localField: "owner",
                 foreignField: "_id",
                 as : "owner",
-                piepline: [
+                pipeline: [
                     {
                         $project: {
                             username: 1,
@@ -196,9 +198,132 @@ const deleteComment=asyncHandler(async(req, res)=>{
     .json(new ApiResponse(200, {commentId}, "Comment deleted successfully"))
 });
 
+const getTweetComments=asyncHandler(async(req, res)=>{
+    const {tweetId}=req.params
+    const {page=1, limit=20}=req.query
+
+    if(!isValidObjectId(tweetId)){
+        throw new ApiError(400, "Invalid tweetId")
+    }
+
+    const tweet=await Tweet.findById(tweetId)
+    if(!tweet){
+        throw new ApiError(404, "Tweet not found")
+    }
+
+    const pageNum=parseInt(page, 10);
+    const limitNum=parseInt(limit, 10);
+
+    const comments_aggregate=await Comment.aggregate([
+        {
+            $match: {
+                tweet: new mongoose.Types.ObjectId(tweetId)
+            }
+        },
+        {
+            $sort: {
+                createdAt: -1
+            }
+        },
+        {
+            $lookup: {
+                from : "users",
+                localField: "owner",
+                foreignField: "_id",
+                as : "owner",
+                pipeline: [
+                    {
+                        $project: {
+                            username: 1,
+                            fullName: 1,
+                            avatar: 1   
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "comment",
+                as: "likes"  
+            }
+        },
+        {
+            $addFields: {
+                owner: { 
+                    $first: "$owner" 
+                },
+                likesCount: { 
+                    $size: "$likes" 
+                },
+                isLiked: {
+                    $in: [
+                        new mongoose.Types.ObjectId(req.user?._id),
+                        "$likes.likedBy"
+                    ]
+                }
+            }
+        },
+        {
+            $project: {
+                content: 1,
+                createdAt: 1,
+                owner: 1,
+                likesCount: 1,
+                isLiked: 1
+            }
+        }
+    ])
+
+    const comments=await Comment.aggregatePaginate(comments_aggregate, {
+        page: pageNum,
+        limit: limitNum
+    })
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, comments, "Tweet comments fetched successfully"))
+}); 
+
+const addTweetComment=asyncHandler(async(req, res)=>{
+    const {tweetId}=req.params
+    const {content}=req.body
+
+    if(!isValidObjectId(tweetId)){
+        throw new ApiError(400, "Invalid tweetId")
+    }
+    if(!content?.trim()){
+        throw new ApiError(400, "Comment content is required")
+    }
+
+    const tweet=await Tweet.findById(tweetId)
+    if(!tweet){
+        throw new ApiError(404, "Tweet not found")
+    }
+
+    const comment=await Comment.create({
+        content: content.trim(),
+        tweet: tweetId,
+        owner: req.user?._id
+    })
+    if(!comment){
+        throw new ApiError(500, "Failed to add comment")
+    }
+
+    const populatedComment=await Comment.findById(comment._id).populate("owner", "username fullName avatar");
+
+    return res
+    .status(201)
+    .json(new ApiResponse(201, populatedComment, "Comment added successfully"))
+});
+
 export {
     getVideoComments, 
     addComment, 
     updateComment,
-    deleteComment
+    deleteComment,
+    getTweetComments,
+    addTweetComment
 }

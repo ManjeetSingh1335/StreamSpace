@@ -1,14 +1,17 @@
-import {Router} from "express"
+import {Router} from "express";
 import {
     toggleSubscription,
     getUserChannelSubscribers,
     getSubscribedChannels,
-    isSubscribed
+    isSubscribed,
+    getSubscribedFeed
 } from "../controllers/subscription.controller.js"
 import {verifyJWT} from "../middlewares/auth.middleware.js"
 
 const router=Router();
 router.use(verifyJWT);
+
+router.route("/feed").get(getSubscribedFeed);
 
 router.route("/c/:channelId")
 .get(getUserChannelSubscribers)

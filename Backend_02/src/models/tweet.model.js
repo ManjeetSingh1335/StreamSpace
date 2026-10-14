@@ -5,6 +5,9 @@ const tweetSchema=new Schema({
         type: String,
         required: true
     },
+    image: {
+        type: String
+    },
     owner: {
         type: Schema.Types.ObjectId,
         ref: "User"

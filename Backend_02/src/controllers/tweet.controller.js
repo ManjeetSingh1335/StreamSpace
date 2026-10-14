@@ -1,19 +1,33 @@
 import mongoose, {isValidObjectId} from "mongoose"
 import {Tweet} from "../models/tweet.model.js"
 import {User} from "../models/user.model.js"
+import {Like} from "../models/like.model.js"
+import {Comment} from "../models/comment.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
+import {uploadOnCloudinary, deleteOnCloudinary} from "../utils/cloudinary.js"
 
 const createTweet=asyncHandler(async(req, res)=>{
     
     const {content}=req.body
-    if(!content?.trim()){
-        throw new ApiError(400, "Tweet content is required")
+    const imageLocalPath = req.file?.path;
+
+    if(!content?.trim() && !imageLocalPath){
+        throw new ApiError(400, "Tweet content or image is required")
+    }
+
+    let imageUrl = "";
+    if(imageLocalPath){
+        const uploadRes = await uploadOnCloudinary(imageLocalPath);
+        if(uploadRes?.url){
+            imageUrl = uploadRes.url;
+        }
     }
 
     const tweet=await Tweet.create({
-        content: content.trim(),
+        content: content ? content.trim() : "",
+        image: imageUrl || undefined,
         owner: req.user?._id
     })
 
@@ -75,12 +89,23 @@ const getUserTweets=asyncHandler(async(req, res)=>{
             }
         },
         {
+            $lookup: {
+                from: "comments",
+                localField: "_id",
+                foreignField: "tweet",
+                as: "comments"
+            }
+        },
+        {
             $addFields: {
                 owner: { 
                     $first: "$owner" 
                 },
                 likesCount: { 
                     $size: "$likes" 
+                },
+                commentsCount: {
+                    $size: "$comments"
                 },
                 isLiked: {
                     $in: [
@@ -93,9 +118,11 @@ const getUserTweets=asyncHandler(async(req, res)=>{
         {
             $project: {
                 content: 1,
+                image: 1,
                 createdAt: 1,
                 owner: 1,
                 likesCount: 1,
+                commentsCount: 1,
                 isLiked: 1
             }
         }
@@ -165,8 +192,17 @@ const deleteTweet=asyncHandler(async(req, res)=>{
         throw new ApiError(403, "You are not allowed to delete this tweet")
     }
 
+    if(tweet.image){
+        await deleteOnCloudinary(tweet.image);
+    }
+
     await Tweet.findByIdAndDelete(tweetId)
     await Like.deleteMany(
+        { 
+            tweet: tweetId 
+        }
+    )
+    await Comment.deleteMany(
         { 
             tweet: tweetId 
         }
